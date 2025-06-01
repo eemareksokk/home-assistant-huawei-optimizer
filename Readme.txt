@@ -26,7 +26,7 @@ A battery optimization system designed to maximize economic benefits from a home
   * Total Capacity: 15.0 kWh
   * Maximum Charge/Discharge Rate: 4.4 kWh/hour
   * Charging Efficiency: 95%
-  * Minimum State of Charge: 75%
+  * Minimum State of Charge: 0,75 kWh 
 - Grid Parameters:
   * Maximum Grid Load: 4400W
   * Minimum Grid Load: 500W (during negative grid price)
