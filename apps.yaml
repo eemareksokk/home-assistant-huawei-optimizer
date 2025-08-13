@@ -1,0 +1,4 @@
+---
+battery_optimizer:
+  module: battery_optimizer
+  class: BatteryOptimizer

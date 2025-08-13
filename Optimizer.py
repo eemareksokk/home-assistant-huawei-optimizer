@@ -5,28 +5,28 @@ import appdaemon.plugins.hass.hassapi as hass
 
 class BatteryOptimizer(hass.Hass):
     # Battery and system parameters
-    BATTERY_CAPACITY = 15.0  # total battery capacity [kWh]
-    MAX_CHARGE = 4.4  # maximum battery charging rate [kWh/hour]
-    MAX_DISCHARGE = 4.4  # maximum battery discharge rate [kWh/hour]
-    EFFICIENCY = 0.95  # Battery charging efficiency [%]
-    MINIMAL_SOC = 0.75  # Minimum battery state of charge [kWh]
-    GRID_FEE = 9.00  # grid fee i.e. cost for electricity purchase [€ cents]
-    GRID_BUY_COST = 0.45  # additional cost for electricity purchase [€ cents]
-    GRID_SELL_COST = 0.8  # additional cost for electricity sale [€ cents]
-    MIN_GRID_SELL_PRICE = 5.00  # minimum price for selling from battery to grid [€ cents]
-    MIN_GRID_SELL_AMOUNT = 1  # minimum amount for selling from battery to grid [kWh]
-    MIN_CYCLE_AMOUNT = 0.5  # minimum amount for grid charging and grid selling for determining inverter_mode [kWh]
-    MIN_BATTERY_GRID_CHARGE_PROFIT = 50  # minimum profit to use grid charging [€ cents]
-    BATTERY_GRID_SHARE_PERCENT = 0.66  # Share of battery self-consumption and grid imports caused by phase load imbalance [%]
-    BATTERY_DEVICE_ID = "03155398ac6dbd812ccbfde86517bd24"  # check from Home Assistant
-    INVERTER_DEVICE_ID = "97197cc18141687a9c461766b7dbef4a"  # check from Home Assistant
-    MAX_GRID_LOAD = 4400 # max grid load on normal condition [W]
-    MIN_GRID_LOAD = 500 # max grid load during negative grid price [W]
+    BATTERY_CAPACITY = 15.0  # total battery capacity 15 kwh
+    MAX_CHARGE = 4.4  # maximum battery charging rate 4.4 kwh/hour
+    MAX_DISCHARGE = 4.4  # maximum battery discharge rate 4.4 kwh/hour
+    EFFICIENCY = 0.95  # Battery charging efficiency
+    MINIMAL_SOC = 0.75  # Minimum battery state of charge is 0.75 kwh i.e. 5% of 15 kwh, 1.5 i.e. 10%
+    GRID_FEE = 9.00  # grid fee i.e. cost for electricity purchase
+    GRID_BUY_COST = 0.45  # additional cost for electricity purchase
+    GRID_SELL_COST = 0.8  # additional cost for electricity sale
+    MIN_GRID_SELL_PRICE = 5.00  # minimum price for selling from battery to grid in cents
+    MIN_GRID_SELL_AMOUNT = 1  # minimum amount for selling from battery to grid in kWh
+    MIN_CYCLE_AMOUNT = 0.5  # minimum amount for grid charging and grid selling for determining inverter_mode
+    MIN_BATTERY_GRID_CHARGE_PROFIT = 50  # minimum profit to use grid charging
+    BATTERY_DEVICE_ID = "03155398ac6dbd812ccbfde86517bd24"
+    BATTERY_GRID_SHARE_PERCENT = 0.66  #Share of battery self-consumption and grid imports caused by phase load imbalance (%)
+    INVERTER_DEVICE_ID = "97197cc18141687a9c461766b7dbef4a"
+    MAX_GRID_LOAD = 4400
+    MIN_GRID_LOAD = 500
 
     def initialize(self):
-        # Run every full hour
-        self.run_hourly(self.optimize_battery, datetime.time(0, 0, 0))
-        # Run when button is pressed 
+        # Run every hour and 01 minutes, 1 minute delay is neccessary for Nordpool price updates to be finished before (runs also each full hour)
+        self.run_hourly(self.optimize_battery, datetime.time(0, 1, 0))
+        # Run when button is pressed
         self.listen_event(self.optimize_battery, "call_service", domain="input_button", service="press", entity_id="input_button.my_button")
 
     def optimize_battery(self, *args, **kwargs):
@@ -51,6 +51,7 @@ class BatteryOptimizer(hass.Hass):
         attrs = state["attributes"]
         today_prices = list(map(float, attrs.get("today", [0.0] * 24)))
         self.tomorrow_valid = attrs.get("tomorrow_valid", False)
+
         tomorrow_prices = list(map(float, attrs.get("tomorrow", [0.0] * 24))) if self.tomorrow_valid else [0.0] * 24
         self.prices = today_prices + tomorrow_prices
 
@@ -80,7 +81,7 @@ class BatteryOptimizer(hass.Hass):
 
         # Start the optimizer
         first_run = self.solve_optimization(allow_grid_charging=True)
-        second_run = self.solve_optimization(allow_grid_charging=False) 
+        second_run = self.solve_optimization(allow_grid_charging=False)
 
         profit_difference = first_run['profit'] - second_run['profit']
 
@@ -109,7 +110,7 @@ class BatteryOptimizer(hass.Hass):
             "current_working_mode": current_working_mode
         })
 
-        # Set feed grid power based on current price 
+        # Set feed grid power based on current price
         if self.prices[self.current_time] < self.GRID_SELL_COST:
             self.call_service("huawei_solar/set_maximum_feed_grid_power", power=self.MIN_GRID_LOAD, device_id=self.INVERTER_DEVICE_ID)
         else:
@@ -197,7 +198,7 @@ class BatteryOptimizer(hass.Hass):
         epsilon = 0.001
         first_hour = self.current_time
         # Battery dynamics (considering solar energy and efficiency)
-        # First hour uses the initial state of charge (initial_soc)        
+        # First hour uses the initial state of charge (initial_soc)
         prob += soc[first_hour] == self.initial_soc + self.EFFICIENCY * solar_to_battery[first_hour] + self.EFFICIENCY * grid_buy[first_hour] - d[first_hour]
 
         # Subsequent hours use the state of charge from the previous hour
@@ -244,7 +245,7 @@ class BatteryOptimizer(hass.Hass):
             terms.append((self.prices[i] - self.GRID_SELL_COST) * vars['grid_sell'][i]) # profit from selling to grid
             terms.append(-(self.prices[i] + self.GRID_BUY_COST + self.GRID_FEE) * vars['grid_buy'][i]) # cost of buying from grid
             terms.append((self.GRID_FEE + self.prices[i] + self.GRID_BUY_COST) * vars['solar_self_used'][i]) # self-consumption savings from solar
-            terms.append((self.GRID_FEE * vars['self_used'][i] * self.BATTERY_GRID_SHARE_PERCENT) + 
+            terms.append((self.GRID_FEE * vars['self_used'][i] * self.BATTERY_GRID_SHARE_PERCENT) +
                 (self.prices[i] + self.GRID_BUY_COST) * vars['self_used'][i]) # self-consumption savings from battery
         # Set target function
         prob += lpSum(terms)
@@ -300,8 +301,8 @@ class BatteryOptimizer(hass.Hass):
                 result_inverter_mode[i] = 'feed to grid'
             # Rule 3: If no energy is being used from the battery and solar production is less than consumption
             # This mode indicates no battery activity is needed during periods of low solar production
-            elif (self_used[i].varValue == 0 and 
-                solar_self_used[i].varValue < self.self_consumption and 
+            elif (self_used[i].varValue == 0 and
+                solar_self_used[i].varValue < self.self_consumption and
                 self.pv_forecast[i] < self.self_consumption):
                 result_inverter_mode[i] = 'TOU none'
             # Rule 4: Default case - maximize self-consumption by using available battery and solar resources

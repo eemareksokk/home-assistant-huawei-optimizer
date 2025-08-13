@@ -1,0 +1,24 @@
+# Button to run optimizer manually
+input_button:
+  my_button:
+    name: Run optimizer manually
+    
+# Custom Energy Planning Sensor
+template:
+  - sensor:
+      - name: "Energy Planning Sensor"
+        unique_id: energy_planning_sensor
+        state: ""
+        attributes:
+          current_working_mode: ""
+          price: ""
+          pv_forecast: ""
+          grid_buy: ""        
+          grid_sell: ""
+          self_used: ""        
+          solar_self_used: ""        
+          solar_to_battery: ""
+          solar_to_grid: ""
+          soc: ""
+          inverter_mode: ""
+
